@@ -1,0 +1,116 @@
+module IR_7segment(input IR , rst , clk , output reg [6:0] display , output reg led );
+
+reg [7:0] dout , bcount ;
+reg [31:0] count , data ;
+reg [2:0] state;
+reg irp , pedge , nedge;
+
+always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            irp   <= 1'b1;
+            pedge <= 1'b0;
+            nedge <= 1'b0;
+        end
+        else begin
+            irp   <= IR;
+            pedge <= (~irp &  IR); 
+            nedge <= ( irp & ~IR); 
+        end
+    end
+
+
+always@(posedge clk) begin
+	if(rst) begin
+		data <= 32'd0;
+		dout <= 8'd0;
+		state <= 3'd0;
+		count <= 32'd0;
+		bcount <= 8'd0;
+	end
+	else begin
+	case(state)
+		3'd0 : begin
+			if(nedge)begin
+				state <= 3'd1;
+				count <= 32'd0;
+			end
+		end
+		3'd1 : begin
+			led <= IR;
+			count <= count + 1'b1;
+			if(pedge) begin
+				if(count < 600000 && count > 350000) begin
+					state <= 3'd2;
+					count <= 0;
+				end
+				else 
+					state <= 0;
+			end
+			
+		end
+		3'd2 : begin
+			count <= count + 1'b1;
+			if(nedge) begin
+				if(count < 300000 && count > 150000) begin
+					state <= 3'd3;
+					bcount <= 0;
+					count <= 0;
+				end
+				else 
+					state <= 0;
+			end
+			
+		end
+		3'd3 : begin
+			if(pedge) begin
+				count <= 0;
+			end
+			else if(nedge) begin
+				
+				if(count < 50000 && count > 10000) begin
+					data <= {1'b0,data[31:1]};
+				end
+				else if(count < 120000 && count > 60000) begin
+					data <= {1'b1,data[31:1]};
+				end
+				
+				count <= 0;
+				
+				if(bcount == 31) begin
+					state <= 3'd4;
+				end
+				
+				else if(bcount < 31) begin
+					bcount <= bcount + 1'b1;
+				end	
+			end
+			else begin
+				count <= count + 1'b1;
+			end	
+		end
+		3'd4 : begin
+			//if (data[23:16] == ~data[31:24]) begin
+         dout <= data[23:16];
+			//end
+			state <= 3'd0;
+		end
+	endcase	
+	end
+end
+
+always@(*) begin
+	case(dout)
+		8'h00 : display = 7'b1000000;
+		8'h01 : display = 7'b1111001;
+		8'h02 : display = 7'b0100100;
+		8'h03 : display = 7'b0110000;
+		8'h04 : display = 7'b0011001;
+		8'h05 : display = 7'b0010010;
+		8'h06 : display = 7'b0000010;
+		8'h07 : display = 7'b1111000;
+		8'h08 : display = 7'b0000000;
+		8'h09 : display = 7'b0010000;
+		default : display = 7'b1111111;
+	endcase
+end
+endmodule
